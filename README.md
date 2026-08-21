@@ -73,6 +73,10 @@ and filled in automatically. This only needs the extension itself running in Fir
 printing, it doesn't require SimPrinter to also be open. Turn on "Auto-fill V1/Rotate from
 SimBrief performance calculations" in SimCallouts's Settings first.
 
+<p>
+  <img src="assets/screenshots/extension-send-to.png" width="420" alt="Send to: SimPrinter / SimCallouts choice on SimBrief's Takeoff Performance calculator">
+</p>
+
 ## Where things live
 
 ```
