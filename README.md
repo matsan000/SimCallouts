@@ -1,5 +1,7 @@
 # SimCallouts
 
+[![Discord](https://img.shields.io/badge/Discord-Join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/Qpxg4tZCc8)
+
 Speaks realistic takeoff and climb callouts - V1, Rotate, Positive rate, Climb thrust, Bug
 up, 10,000 feet, and transition altitude/level - triggered automatically off live SimConnect
 data, no button presses required. Every callout can be toggled on or off individually, so it
