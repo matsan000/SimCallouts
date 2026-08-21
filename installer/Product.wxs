@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+  <Package Name="SimCallouts"
+           Manufacturer="matsan000"
+           Version="$(var.ProductVersion)"
+           UpgradeCode="E221B288-F990-4BD3-8DE3-826EFF3397FA">
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of SimCallouts is already installed." />
+
+    <MediaTemplate EmbedCab="yes" />
+
+    <Icon Id="SimCalloutsIcon" SourceFile="..\src\SimCallouts\SimCallouts.ico" />
+    <Property Id="ARPPRODUCTICON" Value="SimCalloutsIcon" />
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+
+    <WixVariable Id="WixUILicenseRtf" Value="License.rtf" />
+    <ui:WixUI Id="WixUI_InstallDir" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="SimCallouts" />
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Component Id="ApplicationShortcut" Guid="*">
+        <Shortcut Id="StartMenuShortcut"
+                  Name="SimCallouts"
+                  Target="[INSTALLFOLDER]SimCallouts.exe"
+                  WorkingDirectory="INSTALLFOLDER"
+                  Icon="SimCalloutsIcon" />
+        <RemoveFolder Id="RemoveStartMenuFolder" On="uninstall" />
+        <RegistryValue Root="HKCU" Key="Software\SimCallouts" Name="installed" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+
+    <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
+      <Files Include="..\publish\**" />
+    </ComponentGroup>
+
+    <Feature Id="Main">
+      <ComponentGroupRef Id="AppFiles" />
+      <ComponentRef Id="ApplicationShortcut" />
+    </Feature>
+
+  </Package>
+</Wix>

@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>SimCallouts</AssemblyName>
+    <RootNamespace>SimCallouts</RootNamespace>
+    <Version>1.0.0</Version>
+    <ApplicationIcon>SimCallouts.ico</ApplicationIcon>
+
+    <!-- Required for WinForms' auto-generated ApplicationConfiguration.Initialize() -->
+    <ApplicationVisualStyles>true</ApplicationVisualStyles>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <ApplicationUseCompatibleTextRendering>false</ApplicationUseCompatibleTextRendering>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- SAPI-based text-to-speech, built into Windows - no API key, no internet needed. -->
+    <PackageReference Include="System.Speech" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- MSFS SDK2024 SimConnect client, not on NuGet - vendored from SimPrinter's copy (same
+         Microsoft redistributables, not tied to that project). See SimPrinter's csproj for
+         the full explanation of why the native DLLs are bundled directly. -->
+    <Reference Include="Microsoft.FlightSimulator.SimConnect">
+      <HintPath>lib\SimConnect\Microsoft.FlightSimulator.SimConnect.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <None Include="lib\SimConnect\SimConnect.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>SimConnect.dll</Link>
+    </None>
+    <None Include="lib\SimConnect\MSVCP140.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>MSVCP140.dll</Link>
+    </None>
+    <None Include="lib\SimConnect\VCRUNTIME140.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>VCRUNTIME140.dll</Link>
+    </None>
+    <None Include="lib\SimConnect\VCRUNTIME140_1.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>VCRUNTIME140_1.dll</Link>
+    </None>
+  </ItemGroup>
+
+</Project>

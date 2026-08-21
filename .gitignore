@@ -1,0 +1,18 @@
+# Build output
+bin/
+obj/
+publish/
+.vs/
+*.user
+
+# Local editor/tool config, not project source
+.claude/
+
+# Installer build artifacts (regenerate via installer/build-installer.ps1)
+installer/*.msi
+installer/*.wixpdb
+installer/*.zip
+installer/.wix/
+
+# Runtime-generated files that should never be committed
+preferences.json
