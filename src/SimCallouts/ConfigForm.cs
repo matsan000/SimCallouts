@@ -21,6 +21,11 @@ namespace SimCallouts
         private readonly RoundedSwitch _chkTenThousandFt = new();
         private readonly RoundedSwitch _chkTransitionAltitude = new();
         private readonly RoundedSwitch _chkTransitionLevel = new();
+        private readonly RoundedSwitch _chkEightyKnots = new();
+        private readonly RoundedSwitch _chkHundredKnots = new();
+        private readonly RoundedSwitch _chkOneThousandFeet = new();
+        private readonly RoundedSwitch _chkFiveHundredFeet = new();
+        private readonly RoundedSwitch _chkMinimums = new();
         private readonly ComboBox _cmbVoice = new();
         private readonly RoundedButton _btnTestVoice = new();
         private readonly RoundedButton _btnSave = new();
@@ -34,7 +39,7 @@ namespace SimCallouts
             Text = "Settings";
             Font = new Font("Segoe UI", 10f);
             BackColor = UiStyle.BackgroundColor;
-            ClientSize = new Size(480, 730);
+            ClientSize = new Size(480, 1035);
             MinimumSize = new Size(440, 320);
             FormBorderStyle = FormBorderStyle.Sizable;
             MaximizeBox = true;
@@ -55,7 +60,7 @@ namespace SimCallouts
                 AutoSize = true,
                 AutoSizeMode = AutoSizeMode.GrowAndShrink,
                 ColumnCount = 1,
-                RowCount = 4,
+                RowCount = 5,
                 BackColor = UiStyle.BackgroundColor
             };
             // Padding(36) + header(~37) + label(~24) + 40px input field + switch row(~54) +
@@ -63,8 +68,10 @@ namespace SimCallouts
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 270));
             // Padding(36) + header(~37) + combo(40) + margin(10) + button(38) = ~161.
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 175));
-            // Padding(36) + header(~37) + eight ~46px switch rows = ~441.
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 460));
+            // Padding(36) + header(~37) + nine ~46px switch rows = ~487.
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 500));
+            // Padding(36) + header(~37) + four ~46px switch rows = ~257.
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 275));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
             var cardSimBrief = UiStyle.CreateCard("SimBrief", out Panel simBriefContent);
@@ -77,12 +84,17 @@ namespace SimCallouts
             BuildVoiceContent(voiceContent);
             root.Controls.Add(cardVoice, 0, 1);
 
-            var cardCallouts = UiStyle.CreateCard("Callouts", out Panel calloutsContent);
-            cardCallouts.Margin = new Padding(0, 0, 0, 14);
-            BuildCalloutsContent(calloutsContent);
-            root.Controls.Add(cardCallouts, 0, 2);
+            var cardDeparture = UiStyle.CreateCard("Departure Callouts", out Panel departureContent);
+            cardDeparture.Margin = new Padding(0, 0, 0, 14);
+            BuildDepartureCalloutsContent(departureContent);
+            root.Controls.Add(cardDeparture, 0, 2);
 
-            root.Controls.Add(BuildFooter(), 0, 3);
+            var cardArrival = UiStyle.CreateCard("Arrival Callouts", out Panel arrivalContent);
+            cardArrival.Margin = new Padding(0, 0, 0, 14);
+            BuildArrivalCalloutsContent(arrivalContent);
+            root.Controls.Add(cardArrival, 0, 3);
+
+            root.Controls.Add(BuildFooter(), 0, 4);
 
             var scrollHost = new Panel
             {
@@ -189,29 +201,17 @@ namespace SimCallouts
             content.Controls.Add(layout);
         }
 
-        private void BuildCalloutsContent(Panel content)
+        private static void BuildCalloutSwitchRows(Panel content, (string Label, RoundedSwitch Switch)[] rows)
         {
             var layout = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 1,
-                RowCount = 8,
+                RowCount = rows.Length,
                 Margin = new Padding(0)
             };
-            for (int i = 0; i < 8; i++)
+            for (int i = 0; i < rows.Length; i++)
                 layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-
-            var rows = new (string Label, RoundedSwitch Switch)[]
-            {
-                ("V1", _chkV1),
-                ("Rotate", _chkRotate),
-                ("Positive rate", _chkPositiveRate),
-                ("Thrust reduction (\"Climb thrust\")", _chkThrustReduction),
-                ("Acceleration altitude (\"Bug up\")", _chkAccel),
-                ("10,000 feet", _chkTenThousandFt),
-                ("Transition altitude", _chkTransitionAltitude),
-                ("Transition level", _chkTransitionLevel),
-            };
 
             for (int i = 0; i < rows.Length; i++)
             {
@@ -221,6 +221,34 @@ namespace SimCallouts
 
             content.Controls.Add(layout);
         }
+
+        // Takeoff roll through the end of the climb - everything up to level-off at cruise.
+        // 10,000 feet also covers the descent case (see its own crossing-direction logic in
+        // CalloutTracker), but it's listed here since climbing through it happens first.
+        private void BuildDepartureCalloutsContent(Panel content) => BuildCalloutSwitchRows(content, new (string, RoundedSwitch)[]
+        {
+            ("80 knots (takeoff roll)", _chkEightyKnots),
+            ("100 knots (takeoff roll)", _chkHundredKnots),
+            ("V1", _chkV1),
+            ("Rotate", _chkRotate),
+            ("Positive rate", _chkPositiveRate),
+            ("Thrust reduction (\"Climb thrust\")", _chkThrustReduction),
+            ("Acceleration altitude (\"Bug up\")", _chkAccel),
+            ("Transition altitude", _chkTransitionAltitude),
+            ("10,000 feet (climb and descent)", _chkTenThousandFt),
+        });
+
+        // Descent into landing. 10,000 feet's descent trigger shares the single toggle up in
+        // Departure Callouts rather than appearing twice. The 1,000/500 feet gate calls are
+        // AGL (radio altitude) and only count a descending crossing, so they don't also fire
+        // climbing through those heights right after takeoff.
+        private void BuildArrivalCalloutsContent(Panel content) => BuildCalloutSwitchRows(content, new (string, RoundedSwitch)[]
+        {
+            ("Transition level", _chkTransitionLevel),
+            ("1,000 feet AGL (approach)", _chkOneThousandFeet),
+            ("500 feet AGL (approach)", _chkFiveHundredFeet),
+            ("Minimums (approach)", _chkMinimums),
+        });
 
         private Control BuildFooter()
         {
@@ -275,6 +303,11 @@ namespace SimCallouts
             _chkTenThousandFt.Checked = _preferences.EnableTenThousandFt;
             _chkTransitionAltitude.Checked = _preferences.EnableTransitionAltitude;
             _chkTransitionLevel.Checked = _preferences.EnableTransitionLevel;
+            _chkEightyKnots.Checked = _preferences.EnableEightyKnots;
+            _chkHundredKnots.Checked = _preferences.EnableHundredKnots;
+            _chkOneThousandFeet.Checked = _preferences.EnableOneThousandFeet;
+            _chkFiveHundredFeet.Checked = _preferences.EnableFiveHundredFeet;
+            _chkMinimums.Checked = _preferences.EnableMinimums;
 
             if (!string.IsNullOrEmpty(_preferences.VoiceName) && _cmbVoice.Items.Contains(_preferences.VoiceName))
                 _cmbVoice.SelectedItem = _preferences.VoiceName;
@@ -295,6 +328,11 @@ namespace SimCallouts
             _preferences.EnableTenThousandFt = _chkTenThousandFt.Checked;
             _preferences.EnableTransitionAltitude = _chkTransitionAltitude.Checked;
             _preferences.EnableTransitionLevel = _chkTransitionLevel.Checked;
+            _preferences.EnableEightyKnots = _chkEightyKnots.Checked;
+            _preferences.EnableHundredKnots = _chkHundredKnots.Checked;
+            _preferences.EnableOneThousandFeet = _chkOneThousandFeet.Checked;
+            _preferences.EnableFiveHundredFeet = _chkFiveHundredFeet.Checked;
+            _preferences.EnableMinimums = _chkMinimums.Checked;
 
             _preferences.VoiceName = _cmbVoice.SelectedItem as string;
             _preferences.Save();

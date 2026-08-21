@@ -15,6 +15,7 @@ namespace SimCallouts
         private readonly TextBox _txtAccelAlt = new();
         private readonly TextBox _txtTransitionAlt = new();
         private readonly TextBox _txtTransitionLevel = new();
+        private readonly TextBox _txtMinimums = new();
         private readonly RoundedButton _btnSave = new();
         private readonly Label _lblSaveStatus = new();
         private readonly Label _lblStatus = new();
@@ -108,7 +109,8 @@ namespace SimCallouts
             }
 
             _tracker.Configure(_preferences.V1Kts, _preferences.RotateKts, _preferences.ThrustReductionAltFt,
-                _preferences.AccelAltFt, _preferences.TransitionAltFt, _preferences.TransitionLevelFt);
+                _preferences.AccelAltFt, _preferences.TransitionAltFt, _preferences.TransitionLevelFt,
+                _preferences.MinimumsAglFt);
             _preferences.Save();
 
             _lblSaveStatus.ForeColor = UiStyle.SuccessColor;
@@ -149,6 +151,11 @@ namespace SimCallouts
                 Callout.TenThousandFt => "10,000 feet",
                 Callout.TransitionAltitude => "Passing transition altitude",
                 Callout.TransitionLevel => "Passing transition level",
+                Callout.EightyKnots => "80 knots",
+                Callout.HundredKnots => "100 knots",
+                Callout.OneThousandFeet => "1,000 feet",
+                Callout.FiveHundredFeet => "500 feet",
+                Callout.Minimums => "Minimums",
                 _ => ""
             };
             if (text.Length == 0) return;
@@ -303,6 +310,7 @@ namespace SimCallouts
                 ("Accel Alt (ft)", _txtAccelAlt, _preferences.EnableAccel),
                 ("Trans Alt (ft)", _txtTransitionAlt, _preferences.EnableTransitionAltitude),
                 ("Trans Level (ft)", _txtTransitionLevel, _preferences.EnableTransitionLevel),
+                ("Minimums (ft)", _txtMinimums, _preferences.EnableMinimums),
             };
             var visibleRows = rows.Where(r => r.Enabled).ToArray();
 
@@ -454,12 +462,17 @@ namespace SimCallouts
                 ? _preferences.TransitionAltFt.ToString(CultureInfo.InvariantCulture) : "";
             _txtTransitionLevel.Text = _preferences.TransitionLevelFt > 0
                 ? _preferences.TransitionLevelFt.ToString(CultureInfo.InvariantCulture) : "";
+            _txtMinimums.Text = _preferences.MinimumsAglFt > 0
+                ? _preferences.MinimumsAglFt.ToString(CultureInfo.InvariantCulture) : "";
             _tracker.Configure(_preferences.V1Kts, _preferences.RotateKts,
                 _preferences.ThrustReductionAltFt, _preferences.AccelAltFt,
-                _preferences.TransitionAltFt, _preferences.TransitionLevelFt);
+                _preferences.TransitionAltFt, _preferences.TransitionLevelFt, _preferences.MinimumsAglFt);
             _tracker.ConfigureEnabled(_preferences.EnableV1, _preferences.EnableRotate,
                 _preferences.EnablePositiveRate, _preferences.EnableThrustReduction, _preferences.EnableAccel,
-                _preferences.EnableTenThousandFt, _preferences.EnableTransitionAltitude, _preferences.EnableTransitionLevel);
+                _preferences.EnableTenThousandFt, _preferences.EnableTransitionAltitude, _preferences.EnableTransitionLevel,
+                _preferences.EnableEightyKnots, _preferences.EnableHundredKnots,
+                _preferences.EnableOneThousandFeet, _preferences.EnableFiveHundredFeet,
+                _preferences.EnableMinimums);
 
             RefreshSpeedsCard();
 
@@ -478,14 +491,16 @@ namespace SimCallouts
             double accelAlt = ParseKts(_txtAccelAlt.Text);
             double transitionAlt = ParseKts(_txtTransitionAlt.Text);
             double transitionLevel = ParseKts(_txtTransitionLevel.Text);
+            double minimums = ParseKts(_txtMinimums.Text);
 
-            _tracker.Configure(v1, vr, thrustReductionAlt, accelAlt, transitionAlt, transitionLevel);
+            _tracker.Configure(v1, vr, thrustReductionAlt, accelAlt, transitionAlt, transitionLevel, minimums);
             _preferences.V1Kts = v1;
             _preferences.RotateKts = vr;
             _preferences.ThrustReductionAltFt = thrustReductionAlt;
             _preferences.AccelAltFt = accelAlt;
             _preferences.TransitionAltFt = transitionAlt;
             _preferences.TransitionLevelFt = transitionLevel;
+            _preferences.MinimumsAglFt = minimums;
             _preferences.Save();
 
             _lblSaveStatus.ForeColor = UiStyle.SuccessColor;
@@ -507,7 +522,10 @@ namespace SimCallouts
 
                 _tracker.ConfigureEnabled(_preferences.EnableV1, _preferences.EnableRotate,
                     _preferences.EnablePositiveRate, _preferences.EnableThrustReduction, _preferences.EnableAccel,
-                    _preferences.EnableTenThousandFt, _preferences.EnableTransitionAltitude, _preferences.EnableTransitionLevel);
+                    _preferences.EnableTenThousandFt, _preferences.EnableTransitionAltitude, _preferences.EnableTransitionLevel,
+                    _preferences.EnableEightyKnots, _preferences.EnableHundredKnots,
+                    _preferences.EnableOneThousandFeet, _preferences.EnableFiveHundredFeet,
+                    _preferences.EnableMinimums);
                 RefreshSpeedsCard();
 
                 _lblStatus.ForeColor = UiStyle.SuccessColor;

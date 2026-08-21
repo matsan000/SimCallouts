@@ -10,6 +10,7 @@ namespace SimCallouts
         public double AccelAltFt { get; set; } = 0;
         public double TransitionAltFt { get; set; } = 0;
         public double TransitionLevelFt { get; set; } = 0;
+        public double MinimumsAglFt { get; set; } = 0;
         public bool EnableV1 { get; set; } = true;
         public bool EnableRotate { get; set; } = true;
         public bool EnablePositiveRate { get; set; } = true;
@@ -18,6 +19,11 @@ namespace SimCallouts
         public bool EnableTenThousandFt { get; set; } = true;
         public bool EnableTransitionAltitude { get; set; } = true;
         public bool EnableTransitionLevel { get; set; } = true;
+        public bool EnableEightyKnots { get; set; } = false;
+        public bool EnableHundredKnots { get; set; } = false;
+        public bool EnableOneThousandFeet { get; set; } = false;
+        public bool EnableFiveHundredFeet { get; set; } = false;
+        public bool EnableMinimums { get; set; } = false;
         public string? VoiceName { get; set; }
         public bool DarkMode { get; set; } = true;
         public string SimBriefId { get; set; } = "";
