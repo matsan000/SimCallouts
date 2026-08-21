@@ -64,9 +64,10 @@ nothing.
 
 ## Firefox extension
 
-SimCallouts shares its SimBrief integration with
-[SimPrinter's browser extension](https://github.com/matsan000/SimPrinter#firefox-extension-simbrief-performance-print).
-Install that extension, open a Takeoff/Landing Performance calculation on SimBrief, and pick
+SimCallouts shares its SimBrief integration with the
+[FlightTools Firefox extension](https://github.com/matsan000/FlightTools-Firefox-Extension),
+also used by SimPrinter. Install that extension, open a Takeoff/Landing Performance
+calculation on SimBrief, and pick
 **SimCallouts** from the "Send to:" choice next to the result - V1 and Rotate get pulled out
 and filled in automatically. This only needs the extension itself running in Firefox; unlike
 printing, it doesn't require SimPrinter to also be open. Turn on "Auto-fill V1/Rotate from
