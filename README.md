@@ -65,7 +65,7 @@ nothing.
 ## Firefox extension
 
 SimCallouts shares its SimBrief integration with the
-[FlightTools Firefox extension](https://github.com/matsan000/FlightTools-Firefox-Extension),
+[FlightTools Firefox extension](https://github.com/matsan000/Matsan000-s-Flighttools-firefox-extension),
 also used by SimPrinter. Install that extension, open a Takeoff/Landing Performance
 calculation on SimBrief, and pick
 **SimCallouts** from the "Send to:" choice next to the result - V1 and Rotate get pulled out
