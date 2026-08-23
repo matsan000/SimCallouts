@@ -32,11 +32,7 @@ Three ways to hear it, all configured in Settings:
 
 - **Windows voice** (default) - whatever's installed via SAPI text-to-speech. No API key, no
   internet connection required.
-- **Recorded sound files** - drop your own MP3 for each of the 13 fixed callouts into
-  `assets/Sounds` and flip the switch in Settings -> Recorded Sounds. Only covers the fixed
-  callouts, not the departure/arrival briefings (those are built from live flight data, so
-  there's no fixed sentence to record) - briefings keep using whichever of the other two
-  voices is configured.
+- **Recorded sound files** - Use the preinstalled audio files or generate some yourself to replace them.
 - **ElevenLabs** - paste your own API key and a voice ID in Settings -> ElevenLabs API for
   realistic AI narration of both callouts and briefings. Every generated clip is cached to
   disk (`%APPDATA%\SimCallouts\ElevenLabsCache`), so a callout like "V1" is only ever
