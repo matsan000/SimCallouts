@@ -26,6 +26,8 @@ namespace SimCallouts
         private readonly CalloutTracker _tracker = new();
         private readonly SpeechSynthesizer _speech = new();
         private readonly LocalImportServer _importServer = new();
+        private readonly Mp3Playback _mp3Playback = new();
+        private readonly ElevenLabsSpeechEngine _elevenLabs = new();
 
         private SimBriefFlightPlan? _currentPlan;
         private Panel _cardSpeeds = null!;
@@ -68,6 +70,7 @@ namespace SimCallouts
             _simConnect.Dispose();
             _speech.Dispose();
             _importServer.Dispose();
+            _mp3Playback.Dispose();
             base.OnFormClosed(e);
         }
 
@@ -159,8 +162,47 @@ namespace SimCallouts
                 _ => ""
             };
             if (text.Length == 0) return;
+
+            if (_preferences.UseRecordedSounds && RecordedSoundEngine.TryGetPath(callout, out string path))
+            {
+                _mp3Playback.PlayFile(path);
+                return;
+            }
+            SpeakText(text);
+        }
+
+        // Routes to ElevenLabs (with caching) when configured, otherwise the classic SAPI
+        // voice - used for anything recorded sound files can't cover: briefings, and any
+        // callout whose file is missing even with UseRecordedSounds on.
+        private void SpeakText(string text)
+        {
+            if (_preferences.UseElevenLabs
+                && !string.IsNullOrWhiteSpace(_preferences.ElevenLabsApiKey)
+                && !string.IsNullOrWhiteSpace(_preferences.ElevenLabsVoiceId))
+            {
+                _ = SpeakElevenLabsAsync(text);
+                return;
+            }
             _speech.SpeakAsyncCancelAll();
             _speech.SpeakAsync(text);
+        }
+
+        private async Task SpeakElevenLabsAsync(string text)
+        {
+            string? path = await _elevenLabs.GetOrFetchAudioAsync(
+                _preferences.ElevenLabsApiKey!, _preferences.ElevenLabsVoiceId!, text);
+
+            if (path != null)
+            {
+                _mp3Playback.PlayFile(path);
+            }
+            else
+            {
+                // API call failed (bad key, no network, rate limit, etc.) - still say
+                // something rather than going silent.
+                _speech.SpeakAsyncCancelAll();
+                _speech.SpeakAsync(text);
+            }
         }
 
         // ============================== UI construction ==============================
@@ -512,7 +554,7 @@ namespace SimCallouts
 
         private void BtnSettings_Click(object? sender, EventArgs e)
         {
-            using var dlg = new ConfigForm(_preferences, _speech);
+            using var dlg = new ConfigForm(_preferences, _speech, _mp3Playback, _elevenLabs);
             if (dlg.ShowDialog(this) == DialogResult.OK)
             {
                 if (_preferences.EnableBrowserImport)
@@ -570,8 +612,7 @@ namespace SimCallouts
         {
             if (_currentPlan == null) return;
             string text = BriefingBuilder.BuildDeparture(_currentPlan, _preferences);
-            _speech.SpeakAsyncCancelAll();
-            _speech.SpeakAsync(text);
+            SpeakText(text);
             _lblStatus.ForeColor = UiStyle.SuccessColor;
             _lblStatus.Text = "Speaking departure briefing...";
         }
@@ -580,8 +621,7 @@ namespace SimCallouts
         {
             if (_currentPlan == null) return;
             string text = BriefingBuilder.BuildArrival(_currentPlan, _preferences);
-            _speech.SpeakAsyncCancelAll();
-            _speech.SpeakAsync(text);
+            SpeakText(text);
             _lblStatus.ForeColor = UiStyle.SuccessColor;
             _lblStatus.Text = "Speaking arrival briefing...";
         }

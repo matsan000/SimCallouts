@@ -25,6 +25,14 @@ namespace SimCallouts
         public bool EnableFiveHundredFeet { get; set; } = false;
         public bool EnableMinimums { get; set; } = false;
         public string? VoiceName { get; set; }
+        // Recorded MP3s (assets\Sounds, see RecordedSoundEngine) - only covers the 13 fixed
+        // callouts, so it stacks with the other engines rather than replacing them outright.
+        public bool UseRecordedSounds { get; set; } = false;
+        // ElevenLabs API (see ElevenLabsSpeechEngine) - covers callouts and briefings alike,
+        // with every generation cached to disk so it's only ever paid for once per phrase.
+        public bool UseElevenLabs { get; set; } = false;
+        public string? ElevenLabsApiKey { get; set; }
+        public string? ElevenLabsVoiceId { get; set; }
         public bool DarkMode { get; set; } = true;
         public string SimBriefId { get; set; } = "";
         public bool EnableBrowserImport { get; set; } = false;

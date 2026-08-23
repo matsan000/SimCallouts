@@ -10,6 +10,8 @@ namespace SimCallouts
     {
         private readonly Preferences _preferences;
         private readonly SpeechSynthesizer _speech;
+        private readonly Mp3Playback _mp3Playback;
+        private readonly ElevenLabsSpeechEngine _elevenLabs;
 
         private readonly TextBox _txtSimBriefId = new();
         private readonly RoundedSwitch _chkBrowserImport = new();
@@ -28,13 +30,23 @@ namespace SimCallouts
         private readonly RoundedSwitch _chkMinimums = new();
         private readonly ComboBox _cmbVoice = new();
         private readonly RoundedButton _btnTestVoice = new();
+        private readonly RoundedSwitch _chkUseRecordedSounds = new();
+        private readonly Label _lblRecordedSoundsStatus = new();
+        private readonly RoundedButton _btnTestRecordedSound = new();
+        private readonly RoundedSwitch _chkUseElevenLabs = new();
+        private readonly TextBox _txtElevenLabsApiKey = new();
+        private readonly TextBox _txtElevenLabsVoiceId = new();
+        private readonly RoundedButton _btnTestElevenLabs = new();
+        private readonly Label _lblElevenLabsStatus = new();
         private readonly RoundedButton _btnSave = new();
         private readonly RoundedButton _btnCancel = new();
 
-        public ConfigForm(Preferences preferences, SpeechSynthesizer speech)
+        public ConfigForm(Preferences preferences, SpeechSynthesizer speech, Mp3Playback mp3Playback, ElevenLabsSpeechEngine elevenLabs)
         {
             _preferences = preferences;
             _speech = speech;
+            _mp3Playback = mp3Playback;
+            _elevenLabs = elevenLabs;
 
             Text = "Settings";
             Font = new Font("Segoe UI", 10f);
@@ -60,7 +72,7 @@ namespace SimCallouts
                 AutoSize = true,
                 AutoSizeMode = AutoSizeMode.GrowAndShrink,
                 ColumnCount = 1,
-                RowCount = 5,
+                RowCount = 7,
                 BackColor = UiStyle.BackgroundColor
             };
             // Padding(36) + header(~37) + label(~24) + 40px input field + switch row(~54) +
@@ -68,6 +80,12 @@ namespace SimCallouts
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 270));
             // Padding(36) + header(~37) + combo(40) + margin(10) + button(38) = ~161.
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 175));
+            // Padding(36) + header(~37) + switch row(~46) + status label(~20) + margin(8) +
+            // button(38) = ~185.
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 200));
+            // Padding(36) + header(~37) + switch row(~46) + two labelled 40px input fields
+            // (~24 each) + margins + button(38) + status label(~20) = ~325.
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 340));
             // Padding(36) + header(~37) + nine ~46px switch rows = ~487.
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 500));
             // Padding(36) + header(~37) + four ~46px switch rows = ~257.
@@ -84,17 +102,27 @@ namespace SimCallouts
             BuildVoiceContent(voiceContent);
             root.Controls.Add(cardVoice, 0, 1);
 
+            var cardRecordedSounds = UiStyle.CreateCard("Recorded Sounds", out Panel recordedSoundsContent);
+            cardRecordedSounds.Margin = new Padding(0, 0, 0, 14);
+            BuildRecordedSoundsContent(recordedSoundsContent);
+            root.Controls.Add(cardRecordedSounds, 0, 2);
+
+            var cardElevenLabs = UiStyle.CreateCard("ElevenLabs API", out Panel elevenLabsContent);
+            cardElevenLabs.Margin = new Padding(0, 0, 0, 14);
+            BuildElevenLabsContent(elevenLabsContent);
+            root.Controls.Add(cardElevenLabs, 0, 3);
+
             var cardDeparture = UiStyle.CreateCard("Departure Callouts", out Panel departureContent);
             cardDeparture.Margin = new Padding(0, 0, 0, 14);
             BuildDepartureCalloutsContent(departureContent);
-            root.Controls.Add(cardDeparture, 0, 2);
+            root.Controls.Add(cardDeparture, 0, 4);
 
             var cardArrival = UiStyle.CreateCard("Arrival Callouts", out Panel arrivalContent);
             cardArrival.Margin = new Padding(0, 0, 0, 14);
             BuildArrivalCalloutsContent(arrivalContent);
-            root.Controls.Add(cardArrival, 0, 3);
+            root.Controls.Add(cardArrival, 0, 5);
 
-            root.Controls.Add(BuildFooter(), 0, 4);
+            root.Controls.Add(BuildFooter(), 0, 6);
 
             var scrollHost = new Panel
             {
@@ -199,6 +227,158 @@ namespace SimCallouts
             layout.Controls.Add(_btnTestVoice, 0, 1);
 
             content.Controls.Add(layout);
+        }
+
+        // Only covers the 13 fixed callouts (see RecordedSoundEngine) - briefings always use
+        // whichever text-based engine (ElevenLabs or SAPI) is configured below, since they're
+        // built from live flight data and can't be a single static recording.
+        private void BuildRecordedSoundsContent(Panel content)
+        {
+            var layout = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                RowCount = 3,
+                Margin = new Padding(0)
+            };
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
+
+            var switchRow = UiStyle.CreateSwitchRow("Use recorded sound files for callouts", _chkUseRecordedSounds);
+            switchRow.Margin = new Padding(0, 0, 0, 6);
+
+            bool hasAll = RecordedSoundEngine.HasAllFiles;
+            _lblRecordedSoundsStatus.AutoSize = true;
+            _lblRecordedSoundsStatus.Font = new Font("Segoe UI", 8f);
+            _lblRecordedSoundsStatus.Text = hasAll
+                ? "All 13 callout files found in assets\\Sounds."
+                : "Some callout files are missing from assets\\Sounds - those callouts will fall back to the voice below.";
+            _lblRecordedSoundsStatus.ForeColor = hasAll ? UiStyle.SuccessColor : UiStyle.MutedTextColor;
+            _lblRecordedSoundsStatus.MaximumSize = new Size(400, 0);
+            _lblRecordedSoundsStatus.Margin = new Padding(2, 0, 0, 8);
+
+            _btnTestRecordedSound.Text = "Test (\"V1, Rotate\")";
+            _btnTestRecordedSound.AutoSize = false;
+            _btnTestRecordedSound.Width = 160;
+            _btnTestRecordedSound.Height = 38;
+            _btnTestRecordedSound.Anchor = AnchorStyles.Left;
+            _btnTestRecordedSound.Click += async (_, _) => await TestRecordedSoundsAsync();
+            UiStyle.StyleSecondaryButton(_btnTestRecordedSound);
+
+            layout.Controls.Add(switchRow, 0, 0);
+            layout.Controls.Add(_lblRecordedSoundsStatus, 0, 1);
+            layout.Controls.Add(_btnTestRecordedSound, 0, 2);
+
+            content.Controls.Add(layout);
+        }
+
+        // Covers callouts and briefings alike - every generated clip is cached to disk (see
+        // ElevenLabsSpeechEngine) so the same phrase is never paid for or waited on twice.
+        private void BuildElevenLabsContent(Panel content)
+        {
+            var layout = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                RowCount = 7,
+                Margin = new Padding(0)
+            };
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+            var switchRow = UiStyle.CreateSwitchRow("Use ElevenLabs for callouts and briefings", _chkUseElevenLabs);
+            switchRow.Margin = new Padding(0, 0, 0, 10);
+
+            var lblApiKey = new Label
+            {
+                Text = "API Key",
+                AutoSize = true,
+                Font = new Font("Segoe UI", 8f, FontStyle.Bold),
+                ForeColor = UiStyle.MutedTextColor,
+                Margin = new Padding(2, 0, 0, 6)
+            };
+            _txtElevenLabsApiKey.PasswordChar = '*';
+            var apiKeyField = UiStyle.CreateInputField(_txtElevenLabsApiKey);
+            apiKeyField.Dock = DockStyle.Top;
+            apiKeyField.Margin = new Padding(0, 0, 0, 10);
+
+            var lblVoiceId = new Label
+            {
+                Text = "Voice ID",
+                AutoSize = true,
+                Font = new Font("Segoe UI", 8f, FontStyle.Bold),
+                ForeColor = UiStyle.MutedTextColor,
+                Margin = new Padding(2, 0, 0, 6)
+            };
+            var voiceIdField = UiStyle.CreateInputField(_txtElevenLabsVoiceId);
+            voiceIdField.Dock = DockStyle.Top;
+            voiceIdField.Margin = new Padding(0, 0, 0, 10);
+
+            _btnTestElevenLabs.Text = "Test (\"V1. Rotate.\")";
+            _btnTestElevenLabs.AutoSize = false;
+            _btnTestElevenLabs.Width = 180;
+            _btnTestElevenLabs.Height = 38;
+            _btnTestElevenLabs.Anchor = AnchorStyles.Left;
+            _btnTestElevenLabs.Click += async (_, _) => await TestElevenLabsAsync();
+            UiStyle.StyleSecondaryButton(_btnTestElevenLabs);
+
+            _lblElevenLabsStatus.AutoSize = true;
+            _lblElevenLabsStatus.Font = new Font("Segoe UI", 8f);
+            _lblElevenLabsStatus.ForeColor = UiStyle.MutedTextColor;
+            _lblElevenLabsStatus.MaximumSize = new Size(400, 0);
+            _lblElevenLabsStatus.Margin = new Padding(2, 8, 0, 0);
+
+            layout.Controls.Add(switchRow, 0, 0);
+            layout.Controls.Add(lblApiKey, 0, 1);
+            layout.Controls.Add(apiKeyField, 0, 2);
+            layout.Controls.Add(lblVoiceId, 0, 3);
+            layout.Controls.Add(voiceIdField, 0, 4);
+            layout.Controls.Add(_btnTestElevenLabs, 0, 5);
+            layout.Controls.Add(_lblElevenLabsStatus, 0, 6);
+
+            content.Controls.Add(layout);
+        }
+
+        private async Task TestRecordedSoundsAsync()
+        {
+            if (RecordedSoundEngine.TryGetPath(Callout.V1, out string v1Path))
+                await _mp3Playback.PlayFileAsync(v1Path);
+            if (RecordedSoundEngine.TryGetPath(Callout.Rotate, out string rotatePath))
+                await _mp3Playback.PlayFileAsync(rotatePath);
+        }
+
+        private async Task TestElevenLabsAsync()
+        {
+            string apiKey = _txtElevenLabsApiKey.Text.Trim();
+            string voiceId = _txtElevenLabsVoiceId.Text.Trim();
+            if (apiKey.Length == 0 || voiceId.Length == 0)
+            {
+                _lblElevenLabsStatus.ForeColor = UiStyle.ErrorColor;
+                _lblElevenLabsStatus.Text = "Enter both an API key and a voice ID first.";
+                return;
+            }
+
+            _lblElevenLabsStatus.ForeColor = UiStyle.MutedTextColor;
+            _lblElevenLabsStatus.Text = "Generating...";
+
+            string? path = await _elevenLabs.GetOrFetchAudioAsync(apiKey, voiceId, "V1. Rotate.");
+            if (path != null)
+            {
+                _mp3Playback.PlayFile(path);
+                _lblElevenLabsStatus.ForeColor = UiStyle.SuccessColor;
+                _lblElevenLabsStatus.Text = "Done.";
+            }
+            else
+            {
+                _lblElevenLabsStatus.ForeColor = UiStyle.ErrorColor;
+                _lblElevenLabsStatus.Text = "Could not reach ElevenLabs - check the API key, voice ID, and your connection.";
+            }
         }
 
         private static void BuildCalloutSwitchRows(Panel content, (string Label, RoundedSwitch Switch)[] rows)
@@ -313,6 +493,12 @@ namespace SimCallouts
                 _cmbVoice.SelectedItem = _preferences.VoiceName;
             else if (_cmbVoice.Items.Count > 0)
                 _cmbVoice.SelectedIndex = 0;
+
+            _chkUseRecordedSounds.Checked = _preferences.UseRecordedSounds;
+
+            _chkUseElevenLabs.Checked = _preferences.UseElevenLabs;
+            _txtElevenLabsApiKey.Text = _preferences.ElevenLabsApiKey ?? "";
+            _txtElevenLabsVoiceId.Text = _preferences.ElevenLabsVoiceId ?? "";
         }
 
         private void BtnSave_Click(object? sender, EventArgs e)
@@ -335,6 +521,13 @@ namespace SimCallouts
             _preferences.EnableMinimums = _chkMinimums.Checked;
 
             _preferences.VoiceName = _cmbVoice.SelectedItem as string;
+
+            _preferences.UseRecordedSounds = _chkUseRecordedSounds.Checked;
+
+            _preferences.UseElevenLabs = _chkUseElevenLabs.Checked;
+            _preferences.ElevenLabsApiKey = _txtElevenLabsApiKey.Text.Trim();
+            _preferences.ElevenLabsVoiceId = _txtElevenLabsVoiceId.Text.Trim();
+
             _preferences.Save();
 
             DialogResult = DialogResult.OK;

@@ -8,7 +8,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>SimCallouts</AssemblyName>
     <RootNamespace>SimCallouts</RootNamespace>
-    <Version>1.1.0</Version>
+    <Version>1.2.0</Version>
     <ApplicationIcon>SimCallouts.ico</ApplicationIcon>
 
     <!-- Required for WinForms' auto-generated ApplicationConfiguration.Initialize() -->
@@ -20,6 +20,16 @@
   <ItemGroup>
     <!-- SAPI-based text-to-speech, built into Windows - no API key, no internet needed. -->
     <PackageReference Include="System.Speech" Version="8.0.0" />
+    <!-- MP3 playback for the recorded-sound-file and ElevenLabs voice options - SoundPlayer
+         (the only built-in .NET option) only understands WAV. -->
+    <PackageReference Include="NAudio" Version="2.2.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- User-recorded callout MP3s (assets\Sounds at the repo root - one file per fixed
+         callout phrase, see RecordedSoundEngine for the filename mapping). Bundled into the
+         app the same way the SimConnect DLLs above are, so they're present at runtime. -->
+    <None Include="..\..\assets\Sounds\**" CopyToOutputDirectory="PreserveNewest" Link="assets\Sounds\%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>

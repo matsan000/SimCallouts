@@ -28,8 +28,19 @@ and 10,000 feet as a fixed sterile-cockpit marker. Everything re-arms automatica
 you're back on the ground and slowed down, so it's ready for the next takeoff without any
 manual reset.
 
-Voice is whatever's installed on Windows (Settings -> Voice, with a Test Voice button) via
-built-in SAPI text-to-speech - no API key, no internet connection required.
+Three ways to hear it, all configured in Settings:
+
+- **Windows voice** (default) - whatever's installed via SAPI text-to-speech. No API key, no
+  internet connection required.
+- **Recorded sound files** - drop your own MP3 for each of the 13 fixed callouts into
+  `assets/Sounds` and flip the switch in Settings -> Recorded Sounds. Only covers the fixed
+  callouts, not the departure/arrival briefings (those are built from live flight data, so
+  there's no fixed sentence to record) - briefings keep using whichever of the other two
+  voices is configured.
+- **ElevenLabs** - paste your own API key and a voice ID in Settings -> ElevenLabs API for
+  realistic AI narration of both callouts and briefings. Every generated clip is cached to
+  disk (`%APPDATA%\SimCallouts\ElevenLabsCache`), so a callout like "V1" is only ever
+  generated - and billed - once, not every flight.
 
 ## Installing
 
@@ -96,9 +107,12 @@ src/SimCallouts/
   PerformanceCalcParser.cs     Extracts V1/VR out of SimBrief's raw performance-calc text
   LocalImportServer.cs         Localhost server the browser extension sends V1/VR through
   Preferences.cs               Settings persistence (%APPDATA%\SimCallouts)
+  Mp3Playback.cs                Shared NAudio-based MP3 playback
+  RecordedSoundEngine.cs        Maps each fixed callout to a file under assets/Sounds
+  ElevenLabsSpeechEngine.cs     ElevenLabs API calls, with on-disk response caching
   lib/SimConnect/               Vendored SimConnect client (see below)
 installer/                    WiX installer source (build-installer.ps1 builds the MSI)
-assets/                       Logo and other non-code assets
+assets/                       Logo, screenshots, and optional recorded callout MP3s (Sounds/)
 ```
 
 ## License
