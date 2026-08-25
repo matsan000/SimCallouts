@@ -25,6 +25,10 @@ namespace SimCallouts
         public bool EnableFiveHundredFeet { get; set; } = false;
         public bool EnableMinimums { get; set; } = false;
         public string? VoiceName { get; set; }
+        // Applies to every engine (SAPI, recorded sounds, ElevenLabs) - 100 is the original,
+        // unadjusted volume every one of them already played at before this setting existed,
+        // so upgrading users hear no change until they touch the slider themselves.
+        public int VolumePercent { get; set; } = 100;
         // Recorded MP3s (assets\Sounds, see RecordedSoundEngine) - only covers the 13 fixed
         // callouts, so it stacks with the other engines rather than replacing them outright.
         public bool UseRecordedSounds { get; set; } = false;

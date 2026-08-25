@@ -523,6 +523,10 @@ namespace SimCallouts
                 try { _speech.SelectVoice(_preferences.VoiceName); }
                 catch (ArgumentException) { /* voice no longer installed - keep the default */ }
             }
+
+            // Same clamp/scale ConfigForm's slider applies live - see its ApplyVolumeLive.
+            _speech.Volume = Math.Clamp(_preferences.VolumePercent, 0, 100);
+            _mp3Playback.Volume = _preferences.VolumePercent / 100f;
         }
 
         private void BtnSave_Click(object? sender, EventArgs e)

@@ -15,6 +15,8 @@ namespace SimCallouts
 
         private readonly TextBox _txtSimBriefId = new();
         private readonly RoundedSwitch _chkBrowserImport = new();
+        private readonly RoundedSlider _sldVolume = new();
+        private readonly Label _lblVolumeValue = new();
         private readonly RoundedSwitch _chkV1 = new();
         private readonly RoundedSwitch _chkRotate = new();
         private readonly RoundedSwitch _chkPositiveRate = new();
@@ -51,7 +53,7 @@ namespace SimCallouts
             Text = "Settings";
             Font = new Font("Segoe UI", 10f);
             BackColor = UiStyle.BackgroundColor;
-            ClientSize = new Size(480, 1035);
+            ClientSize = new Size(480, 1180);
             MinimumSize = new Size(440, 320);
             FormBorderStyle = FormBorderStyle.Sizable;
             MaximizeBox = true;
@@ -72,12 +74,14 @@ namespace SimCallouts
                 AutoSize = true,
                 AutoSizeMode = AutoSizeMode.GrowAndShrink,
                 ColumnCount = 1,
-                RowCount = 7,
+                RowCount = 8,
                 BackColor = UiStyle.BackgroundColor
             };
             // Padding(36) + header(~37) + label(~24) + 40px input field + switch row(~54) +
             // note(~55, now three lines) = ~246, so 270 leaves enough room for everything.
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 270));
+            // Padding(36) + header(~37) + slider row(~28) + margin(10) + note(~20) = ~131.
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 145));
             // Padding(36) + header(~37) + combo(40) + margin(10) + button(38) = ~161.
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 175));
             // Padding(36) + header(~37) + switch row(~46) + status label(~20) + margin(8) +
@@ -97,32 +101,37 @@ namespace SimCallouts
             BuildSimBriefContent(simBriefContent);
             root.Controls.Add(cardSimBrief, 0, 0);
 
+            var cardVolume = UiStyle.CreateCard("Volume", out Panel volumeContent);
+            cardVolume.Margin = new Padding(0, 0, 0, 14);
+            BuildVolumeContent(volumeContent);
+            root.Controls.Add(cardVolume, 0, 1);
+
             var cardVoice = UiStyle.CreateCard("Voice", out Panel voiceContent);
             cardVoice.Margin = new Padding(0, 0, 0, 14);
             BuildVoiceContent(voiceContent);
-            root.Controls.Add(cardVoice, 0, 1);
+            root.Controls.Add(cardVoice, 0, 2);
 
             var cardRecordedSounds = UiStyle.CreateCard("Recorded Sounds", out Panel recordedSoundsContent);
             cardRecordedSounds.Margin = new Padding(0, 0, 0, 14);
             BuildRecordedSoundsContent(recordedSoundsContent);
-            root.Controls.Add(cardRecordedSounds, 0, 2);
+            root.Controls.Add(cardRecordedSounds, 0, 3);
 
             var cardElevenLabs = UiStyle.CreateCard("ElevenLabs API", out Panel elevenLabsContent);
             cardElevenLabs.Margin = new Padding(0, 0, 0, 14);
             BuildElevenLabsContent(elevenLabsContent);
-            root.Controls.Add(cardElevenLabs, 0, 3);
+            root.Controls.Add(cardElevenLabs, 0, 4);
 
             var cardDeparture = UiStyle.CreateCard("Departure Callouts", out Panel departureContent);
             cardDeparture.Margin = new Padding(0, 0, 0, 14);
             BuildDepartureCalloutsContent(departureContent);
-            root.Controls.Add(cardDeparture, 0, 4);
+            root.Controls.Add(cardDeparture, 0, 5);
 
             var cardArrival = UiStyle.CreateCard("Arrival Callouts", out Panel arrivalContent);
             cardArrival.Margin = new Padding(0, 0, 0, 14);
             BuildArrivalCalloutsContent(arrivalContent);
-            root.Controls.Add(cardArrival, 0, 5);
+            root.Controls.Add(cardArrival, 0, 6);
 
-            root.Controls.Add(BuildFooter(), 0, 6);
+            root.Controls.Add(BuildFooter(), 0, 7);
 
             var scrollHost = new Panel
             {
@@ -183,6 +192,82 @@ namespace SimCallouts
             layout.Controls.Add(importRow, 0, 2);
             layout.Controls.Add(lblImportNote, 0, 3);
             content.Controls.Add(layout);
+        }
+
+        // Applies to every playback engine at once (SAPI, recorded sounds, ElevenLabs) - live
+        // as you drag, so the Test buttons in the cards below immediately reflect it; only
+        // written to Preferences on Save, same as everything else in this dialog. 100% is the
+        // original, unadjusted volume every engine already played at, so nothing changes for
+        // existing users until they move the slider themselves. SAPI's own volume ceiling is
+        // 100 regardless (Windows doesn't expose amplification past that for it), but the
+        // recorded-sound/ElevenLabs engines can go up to 200% - true amplification, not just
+        // "back to normal" - since that's what actually helps when a recording is too quiet
+        // even at its original level.
+        private void BuildVolumeContent(Panel content)
+        {
+            var layout = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                RowCount = 2,
+                Margin = new Padding(0)
+            };
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+            var sliderRow = new TableLayoutPanel
+            {
+                Dock = DockStyle.Top,
+                ColumnCount = 2,
+                RowCount = 1,
+                AutoSize = true,
+                BackColor = UiStyle.CardBackgroundColor
+            };
+            sliderRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            sliderRow.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+
+            UiStyle.StyleSlider(_sldVolume);
+            _sldVolume.Minimum = 0;
+            _sldVolume.Maximum = 200;
+            _sldVolume.Dock = DockStyle.Fill;
+            _sldVolume.Margin = new Padding(0, 0, 12, 0);
+            _sldVolume.ValueChanged += (_, _) =>
+            {
+                _lblVolumeValue.Text = $"{_sldVolume.Value}%";
+                ApplyVolumeLive();
+            };
+
+            _lblVolumeValue.AutoSize = false;
+            _lblVolumeValue.Text = "100%";
+            _lblVolumeValue.Font = new Font("Segoe UI", 10f, FontStyle.Bold);
+            _lblVolumeValue.ForeColor = UiStyle.TextColor;
+            _lblVolumeValue.Anchor = AnchorStyles.Right;
+            _lblVolumeValue.Size = new Size(48, 28);
+            _lblVolumeValue.TextAlign = ContentAlignment.MiddleRight;
+
+            sliderRow.Controls.Add(_sldVolume, 0, 0);
+            sliderRow.Controls.Add(_lblVolumeValue, 1, 0);
+
+            var lblNote = new Label
+            {
+                Text = "100% is the original volume every sound already played at - turn it up if " +
+                       "callouts are hard to hear, or down if they're too loud.",
+                AutoSize = true,
+                MaximumSize = new Size(400, 0),
+                Font = new Font("Segoe UI", 8f),
+                ForeColor = UiStyle.MutedTextColor,
+                Margin = new Padding(2, 8, 0, 0)
+            };
+
+            layout.Controls.Add(sliderRow, 0, 0);
+            layout.Controls.Add(lblNote, 0, 1);
+            content.Controls.Add(layout);
+        }
+
+        private void ApplyVolumeLive()
+        {
+            _speech.Volume = Math.Clamp(_sldVolume.Value, 0, 100);
+            _mp3Playback.Volume = _sldVolume.Value / 100f;
         }
 
         private void BuildVoiceContent(Panel content)
@@ -475,6 +560,14 @@ namespace SimCallouts
             _txtSimBriefId.Text = _preferences.SimBriefId;
             _chkBrowserImport.Checked = _preferences.EnableBrowserImport;
 
+            // Label text and the live engine volume are set explicitly right after, rather
+            // than relying on Value's ValueChanged event - that event doesn't fire when the
+            // assigned value happens to equal Value's own starting default, which would
+            // otherwise leave both out of sync with the loaded preference.
+            _sldVolume.Value = Math.Clamp(_preferences.VolumePercent, _sldVolume.Minimum, _sldVolume.Maximum);
+            _lblVolumeValue.Text = $"{_sldVolume.Value}%";
+            ApplyVolumeLive();
+
             _chkV1.Checked = _preferences.EnableV1;
             _chkRotate.Checked = _preferences.EnableRotate;
             _chkPositiveRate.Checked = _preferences.EnablePositiveRate;
@@ -505,6 +598,8 @@ namespace SimCallouts
         {
             _preferences.SimBriefId = _txtSimBriefId.Text.Trim();
             _preferences.EnableBrowserImport = _chkBrowserImport.Checked;
+
+            _preferences.VolumePercent = _sldVolume.Value;
 
             _preferences.EnableV1 = _chkV1.Checked;
             _preferences.EnableRotate = _chkRotate.Checked;

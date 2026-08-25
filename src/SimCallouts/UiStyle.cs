@@ -183,6 +183,16 @@ namespace SimCallouts
             toggle.KnobColor = Color.White;
         }
 
+        // ============================== Slider ==============================
+
+        public static void StyleSlider(RoundedSlider slider, Color? blendBackColor = null)
+        {
+            slider.BlendBackColor = blendBackColor ?? CardBackgroundColor;
+            slider.TrackColor = TrackColor;
+            slider.FillColor = AccentColor;
+            slider.KnobColor = Color.White;
+        }
+
         /// <summary>A label + switch row, e.g. for a settings toggle ("Dark theme  [oo]").</summary>
         public static Control CreateSwitchRow(string labelText, RoundedSwitch toggle, Color? blendBackColor = null)
         {
@@ -642,6 +652,116 @@ namespace SimCallouts
             int knobDiameter = h - 6;
             int knobX = Checked ? Width - knobDiameter - 4 : 3;
             var knobRect = new Rectangle(knobX, 3, knobDiameter, knobDiameter);
+            using var knobBrush = new SolidBrush(KnobColor);
+            e.Graphics.FillEllipse(knobBrush, knobRect);
+        }
+
+        private static GraphicsPath RoundedRectPath(Rectangle bounds, int radius)
+        {
+            int d = Math.Max(1, radius * 2);
+            d = Math.Min(d, Math.Min(bounds.Width, bounds.Height));
+            var path = new GraphicsPath();
+            path.AddArc(bounds.X, bounds.Y, d, d, 180, 90);
+            path.AddArc(bounds.Right - d, bounds.Y, d, d, 270, 90);
+            path.AddArc(bounds.Right - d, bounds.Bottom - d, d, d, 0, 90);
+            path.AddArc(bounds.X, bounds.Bottom - d, d, d, 90, 90);
+            path.CloseFigure();
+            return path;
+        }
+    }
+
+    /// <summary>A horizontal drag slider (e.g. Volume) matching the app's flat, rounded look -
+    /// a filled track up to the current value, with a round knob at that position. Click or
+    /// drag anywhere along it to set the value directly, same as a native TrackBar.</summary>
+    public sealed class RoundedSlider : Control
+    {
+        private const int TrackHeight = 6;
+        private const int KnobDiameter = 20;
+
+        public int Minimum { get; set; } = 0;
+        public int Maximum { get; set; } = 100;
+
+        private int _value;
+        public int Value
+        {
+            get => _value;
+            set
+            {
+                int clamped = Math.Clamp(value, Minimum, Maximum);
+                if (clamped == _value) return;
+                _value = clamped;
+                Invalidate();
+                ValueChanged?.Invoke(this, EventArgs.Empty);
+            }
+        }
+
+        public event EventHandler? ValueChanged;
+
+        public Color TrackColor { get; set; } = Color.Gray;
+        public Color FillColor { get; set; } = Color.Blue;
+        public Color KnobColor { get; set; } = Color.White;
+        public Color BlendBackColor { get; set; } = Color.White;
+
+        public RoundedSlider()
+        {
+            SetStyle(ControlStyles.ResizeRedraw | ControlStyles.OptimizedDoubleBuffer |
+                     ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint, true);
+            DoubleBuffered = true;
+            Cursor = Cursors.Hand;
+            Height = 28;
+            // Unlike RoundedButton/RoundedToggleButton (Button/RadioButton subclasses, which
+            // natively support a transparent BackColor), this derives from plain Control -
+            // setting BackColor to Transparent here throws "Control does not support
+            // transparent background colors". Not needed anyway: OnPaintBackground below
+            // already paints BlendBackColor explicitly on every repaint.
+            Resize += (_, _) => Invalidate();
+        }
+
+        protected override bool ShowFocusCues => false;
+
+        protected override void OnHandleCreated(EventArgs e) { base.OnHandleCreated(e); NativeTheme.DisableVisualStyle(this); }
+
+        protected override void OnMouseDown(MouseEventArgs e) { SetValueFromX(e.X); base.OnMouseDown(e); }
+
+        protected override void OnMouseMove(MouseEventArgs e)
+        {
+            if (e.Button == MouseButtons.Left) SetValueFromX(e.X);
+            base.OnMouseMove(e);
+        }
+
+        private void SetValueFromX(int x)
+        {
+            int usable = Width - KnobDiameter;
+            if (usable <= 0) return;
+            float pct = Math.Clamp((x - KnobDiameter / 2f) / usable, 0f, 1f);
+            Value = Minimum + (int)Math.Round(pct * (Maximum - Minimum));
+        }
+
+        protected override void OnPaintBackground(PaintEventArgs pevent)
+        {
+            pevent.Graphics.Clear(BlendBackColor);
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            int trackY = (Height - TrackHeight) / 2;
+            int trackWidth = Math.Max(0, Width - KnobDiameter);
+            float pct = Maximum > Minimum ? (float)(Value - Minimum) / (Maximum - Minimum) : 0;
+            int fillWidth = (int)(trackWidth * pct);
+
+            var trackRect = new Rectangle(KnobDiameter / 2, trackY, trackWidth, TrackHeight);
+            using (var trackBrush = new SolidBrush(TrackColor))
+                e.Graphics.FillPath(trackBrush, RoundedRectPath(trackRect, TrackHeight / 2));
+
+            if (fillWidth > 0)
+            {
+                var fillRect = new Rectangle(KnobDiameter / 2, trackY, fillWidth, TrackHeight);
+                using var fillBrush = new SolidBrush(FillColor);
+                e.Graphics.FillPath(fillBrush, RoundedRectPath(fillRect, TrackHeight / 2));
+            }
+
+            var knobRect = new Rectangle(fillWidth, (Height - KnobDiameter) / 2, KnobDiameter, KnobDiameter);
             using var knobBrush = new SolidBrush(KnobColor);
             e.Graphics.FillEllipse(knobBrush, knobRect);
         }

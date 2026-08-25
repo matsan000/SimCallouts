@@ -13,10 +13,15 @@ namespace SimCallouts
         private WaveOutEvent? _output;
         private AudioFileReader? _reader;
 
+        // 1.0 is the file's original level (AudioFileReader's own default) - values above 1.0
+        // amplify past that, which is what actually addresses "too quiet" complaints, since a
+        // recording that's already quiet at 1.0 has nowhere louder to go without this.
+        public float Volume { get; set; } = 1.0f;
+
         public void PlayFile(string path)
         {
             Stop();
-            _reader = new AudioFileReader(path);
+            _reader = new AudioFileReader(path) { Volume = Volume };
             _output = new WaveOutEvent();
             _output.Init(_reader);
             _output.Play();
@@ -29,7 +34,7 @@ namespace SimCallouts
         {
             Stop();
             var tcs = new TaskCompletionSource();
-            _reader = new AudioFileReader(path);
+            _reader = new AudioFileReader(path) { Volume = Volume };
             _output = new WaveOutEvent();
             _output.PlaybackStopped += (_, _) => tcs.TrySetResult();
             _output.Init(_reader);
