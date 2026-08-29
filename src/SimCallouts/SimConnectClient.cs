@@ -21,7 +21,7 @@ namespace SimCallouts
 
         private enum Definitions { FlightData }
         private enum Requests { FlightData }
-        private enum Events { Sim }
+        private enum Events { Sim, SimStart, SimStop }
 
         // SimConnect starts streaming "user aircraft" data the moment the connection opens,
         // which is as soon as the sim process itself is up - well before a flight is actually
@@ -30,12 +30,22 @@ namespace SimCallouts
         // "Positive rate" AGL threshold while the world is still streaming in), and it can
         // swing through several different bogus readings as the load progresses - each one
         // potentially re-triggering CalloutTracker's ground-rearm-then-refire cycle, which is
-        // what caused "Positive rate" to repeat itself while loading in. The "Sim" system event
-        // is SimConnect's own documented signal for "a flight is actually running" (1) vs. not
-        // (0 - main menu, loading screen, or paused) - gating FlightStateUpdated on it means
-        // CalloutTracker never even sees data from that window, rather than trying to filter
-        // out bad readings after the fact.
-        private bool _simRunning;
+        // what caused "Positive rate" to repeat itself while loading in.
+        //
+        // Two signals gated together (both must say "really flying"), not just one:
+        //  - "Sim" is documented as 1 = "the user is in control of the aircraft", 0 = "the user
+        //    is navigating the UI" - but MSFS 2024's main menu renders a live establishing-shot
+        //    flight behind the menu overlay, and that's been observed to still leave "Sim"
+        //    reporting 1 there, defeating this gate on its own.
+        //  - "SimStart"/"SimStop" are documented more strictly ("the user is actively
+        //    controlling the aircraft, typically on the ground or in the air") and fire
+        //    specifically around a real flight beginning/ending, not the menu's background
+        //    render. Known to double-fire during a flight reset/load (SimStop, SimStart,
+        //    SimStop, SimStart) - harmless here since this only tracks the latest state, not
+        //    counting transitions.
+        private bool _simEventRunning;
+        private bool _flightStarted;
+        private bool SimRunning => _simEventRunning && _flightStarted;
 
         [StructLayout(LayoutKind.Sequential)]
         private struct FlightData
@@ -74,11 +84,14 @@ namespace SimCallouts
                 sc.OnRecvSimobjectData += OnRecvSimobjectData;
                 sc.OnRecvEvent += OnRecvEvent;
 
-                // False until the first "Sim" event actually reports running - so a fresh
-                // connection made while still sitting at the main menu/loading screen starts
-                // out silent too, not just reconnects.
-                _simRunning = false;
+                // False until the events themselves say otherwise - so a fresh connection made
+                // while still sitting at the main menu/loading screen starts out silent too,
+                // not just reconnects.
+                _simEventRunning = false;
+                _flightStarted = false;
                 sc.SubscribeToSystemEvent(Events.Sim, "Sim");
+                sc.SubscribeToSystemEvent(Events.SimStart, "SimStart");
+                sc.SubscribeToSystemEvent(Events.SimStop, "SimStop");
 
                 sc.AddToDataDefinition(Definitions.FlightData, "AIRSPEED INDICATED", "knots",
                     SIMCONNECT_DATATYPE.FLOAT64, 0f, SimConnect.SIMCONNECT_UNUSED);
@@ -109,14 +122,24 @@ namespace SimCallouts
 
         private void OnRecvEvent(SimConnect sender, SIMCONNECT_RECV_EVENT data)
         {
-            if ((Events)data.uEventID != Events.Sim) return;
-            _simRunning = data.dwData != 0;
+            switch ((Events)data.uEventID)
+            {
+                case Events.Sim:
+                    _simEventRunning = data.dwData != 0;
+                    break;
+                case Events.SimStart:
+                    _flightStarted = true;
+                    break;
+                case Events.SimStop:
+                    _flightStarted = false;
+                    break;
+            }
         }
 
         private void OnRecvSimobjectData(SimConnect sender, SIMCONNECT_RECV_SIMOBJECT_DATA data)
         {
             if ((Requests)data.dwRequestID != Requests.FlightData) return;
-            if (!_simRunning) return; // still loading/at the main menu/paused - see _simRunning above
+            if (!SimRunning) return; // still loading/at the main menu/paused - see SimRunning above
             var value = (FlightData)data.dwData[0];
 
             FlightStateUpdated?.Invoke(new SimFlightState(

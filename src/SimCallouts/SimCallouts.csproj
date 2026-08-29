@@ -8,7 +8,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>SimCallouts</AssemblyName>
     <RootNamespace>SimCallouts</RootNamespace>
-    <Version>1.2.2</Version>
+    <Version>1.2.3</Version>
     <ApplicationIcon>SimCallouts.ico</ApplicationIcon>
 
     <!-- Required for WinForms' auto-generated ApplicationConfiguration.Initialize() -->

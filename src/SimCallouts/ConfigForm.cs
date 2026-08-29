@@ -79,9 +79,15 @@ namespace SimCallouts
                 RowCount = 8,
                 BackColor = UiStyle.BackgroundColor
             };
-            // Padding(36) + header(~37) + label(~24) + 40px input field + switch row(~54) +
-            // note(~55, now three lines) = ~246, so 270 leaves enough room for everything.
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 270));
+            // Padding(36) + header(~37) + label(~24) + 40px input field(+margin 14) + switch
+            // row(~54) + note(~55, three lines) + web-dashboard switch row(~68, extra top
+            // margin) + port row(~46) + web-dashboard note(~70, four lines - longer text than
+            // the import note above) = ~444, so 480 leaves enough room for everything. This card
+            // is a fixed-height TableLayoutPanel row (see root.RowStyles below), not an
+            // AutoSize/scrolling one - undersizing it here doesn't wrap or clip visibly so much
+            // as silently squeeze/hide whatever doesn't fit, which is exactly what happened
+            // when the web-dashboard controls were first added without updating this number.
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 480));
             // Padding(36) + header(~37) + slider row(~28) + margin(10) + note(~20) = ~131.
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 145));
             // Padding(36) + header(~37) + combo(40) + margin(10) + button(38) = ~161.
