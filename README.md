@@ -81,7 +81,7 @@ and the full Settings form - voice, volume, recorded sounds/ElevenLabs, every ca
 on/off switch, and more. A callout's altitude field hides itself here too, the moment it's
 switched off. Off by default; turn it on in **Settings -> Enable local web dashboard**.
 
-Meant to be added as a Website App in [RealEFB](https://github.com/matsan000/RealEFB) - point
+Meant to be added as a Website App in [RealEFB](https://github.com/matsan000/RealEFB) (not released yet) point
 it at the address above and SimCallouts shows up right alongside your EFB.
 
 ## Firefox extension
