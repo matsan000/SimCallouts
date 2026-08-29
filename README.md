@@ -24,9 +24,10 @@ loud - like a real crew briefing before pushback.
 SimConnect tracks airspeed, altitude, and ground state every second and calls things out the
 moment each threshold is crossed: V1 and Rotate off airspeed, Positive rate off radio
 altitude at liftoff, thrust reduction/acceleration/transition altitude off true MSL altitude,
-and 10,000 feet as a fixed sterile-cockpit marker. Everything re-arms automatically once
-you're back on the ground and slowed down, so it's ready for the next takeoff without any
-manual reset.
+and 10,000 feet as a fixed sterile-cockpit marker. Nothing fires until a flight is actually
+loaded and running, either - the main menu and loading screens stay silent. Everything
+re-arms automatically once you're back on the ground and slowed down, so it's ready for the
+next takeoff without any manual reset.
 
 Three ways to hear it, all configured in Settings:
 
@@ -71,6 +72,18 @@ Don't want to hear a particular callout? Turn it off in Settings -> Callouts - i
 field on the main screen disappears too, so you're not left staring at a box that does
 nothing.
 
+## Web dashboard
+
+An optional web page at `http://localhost:<port>` (default `39920`) - the same status the
+main window shows (connection, current flight, briefed V1/Rotate, recent callouts), plus
+every action button (Import Flight, Departure/Arrival Briefing, the speeds fields with Save)
+and the full Settings form - voice, volume, recorded sounds/ElevenLabs, every callout's
+on/off switch, and more. A callout's altitude field hides itself here too, the moment it's
+switched off. Off by default; turn it on in **Settings -> Enable local web dashboard**.
+
+Meant to be added as a Website App in [RealEFB](https://github.com/matsan000/RealEFB) - point
+it at the address above and SimCallouts shows up right alongside your EFB.
+
 ## Firefox extension
 
 SimCallouts shares its SimBrief integration with the
@@ -102,6 +115,10 @@ src/SimCallouts/
   SimBriefFlightPlan.cs        Flight plan data model + JSON parsing
   PerformanceCalcParser.cs     Extracts V1/VR out of SimBrief's raw performance-calc text
   LocalImportServer.cs         Localhost server the browser extension sends V1/VR through
+  ActionOutcome.cs              Shared success/message result - actions and MessageBoxes alike
+  DashboardServer.cs            Localhost HTTP server for the web dashboard
+  DashboardHtml.cs              The web dashboard's self-contained page (inline CSS/JS)
+  MainForm.DashboardApi.cs      Routes the dashboard's action buttons and settings form use
   Preferences.cs               Settings persistence (%APPDATA%\SimCallouts)
   Mp3Playback.cs                Shared NAudio-based MP3 playback
   RecordedSoundEngine.cs        Maps each fixed callout to a file under assets/Sounds
