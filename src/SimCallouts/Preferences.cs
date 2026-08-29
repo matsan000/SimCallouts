@@ -41,6 +41,13 @@ namespace SimCallouts
         public string SimBriefId { get; set; } = "";
         public bool EnableBrowserImport { get; set; } = false;
 
+        // Read-only local web dashboard (see DashboardServer) - status only, nothing it serves
+        // can trigger a callout or change a setting, so this doesn't carry the same weight
+        // EnableBrowserImport does, but it's still off by default like every other local
+        // listener here (nothing opens a port without being asked to).
+        public bool EnableWebDashboard { get; set; } = false;
+        public int WebDashboardPort { get; set; } = 39920;
+
         private static string FilePath => Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "SimCallouts", "preferences.json");

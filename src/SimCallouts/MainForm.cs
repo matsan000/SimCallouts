@@ -3,7 +3,11 @@ using System.Speech.Synthesis;
 
 namespace SimCallouts
 {
-    public class MainForm : Form
+    // Split across MainForm.cs (the native UI) and MainForm.DashboardApi.cs (the web
+    // dashboard's action/settings routes) - the latter just calls the same Execute*/_preferences
+    // members this file declares, so they need to be one class rather than two that happen to
+    // cooperate.
+    public partial class MainForm : Form
     {
         private readonly RoundedButton _btnImportFlight = new();
         private readonly RoundedButton _btnDepartureBriefing = new();
@@ -26,10 +30,16 @@ namespace SimCallouts
         private readonly CalloutTracker _tracker = new();
         private readonly SpeechSynthesizer _speech = new();
         private readonly LocalImportServer _importServer = new();
+        private readonly DashboardServer _dashboardServer = new();
         private readonly Mp3Playback _mp3Playback = new();
         private readonly ElevenLabsSpeechEngine _elevenLabs = new();
 
         private SimBriefFlightPlan? _currentPlan;
+
+        // Newest-first, capped so this can't grow unbounded over a long session - the dashboard
+        // only ever shows a handful of recent entries anyway (see DashboardHtml's #callout-list).
+        private readonly List<CalloutLogEntry> _calloutLog = [];
+        private const int MaxCalloutLogEntries = 20;
         private Panel _cardSpeeds = null!;
         private Panel _speedsContent = null!;
 
@@ -50,6 +60,7 @@ namespace SimCallouts
             LoadPreferencesIntoUi();
             StartSimConnect();
             StartImportServer();
+            StartDashboardServer();
 
             // _lblStatus is AutoSize, which measures its full text on one line regardless of
             // window width - without a cap it just runs past the window edge instead of
@@ -70,8 +81,38 @@ namespace SimCallouts
             _simConnect.Dispose();
             _speech.Dispose();
             _importServer.Dispose();
+            _dashboardServer.Dispose();
             _mp3Playback.Dispose();
             base.OnFormClosed(e);
+        }
+
+        /// <summary>
+        /// Opt-in read-only status dashboard (see DashboardServer) - meant to be added as a
+        /// Website App in RealEFB. GetStatus is pulled fresh on every request rather than
+        /// pushed, so this just wires the callback once; nothing here needs to run per-second.
+        /// </summary>
+        private void StartDashboardServer()
+        {
+            _dashboardServer.GetStatus = BuildDashboardStatus;
+            _dashboardServer.OnApiRequest = HandleApiRequestAsync;
+            if (_preferences.EnableWebDashboard)
+                _dashboardServer.Start(_preferences.WebDashboardPort);
+        }
+
+        private DashboardStatus BuildDashboardStatus()
+        {
+            List<CalloutLogEntry> recent;
+            lock (_calloutLog) { recent = new List<CalloutLogEntry>(_calloutLog); }
+
+            return new DashboardStatus(
+                SimConnected: _simConnect.IsConnected,
+                FlightCallsign: _currentPlan?.Callsign,
+                FlightOrigin: _currentPlan?.OriginIcao,
+                FlightDest: _currentPlan?.DestIcao,
+                V1Kts: _preferences.V1Kts,
+                RotateKts: _preferences.RotateKts,
+                ImportServerEnabled: _preferences.EnableBrowserImport,
+                RecentCallouts: recent);
         }
 
         // ============================== SimConnect / tracker wiring ==============================
@@ -162,6 +203,12 @@ namespace SimCallouts
                 _ => ""
             };
             if (text.Length == 0) return;
+
+            lock (_calloutLog)
+            {
+                _calloutLog.Insert(0, new CalloutLogEntry(DateTime.UtcNow, text));
+                if (_calloutLog.Count > MaxCalloutLogEntries) _calloutLog.RemoveRange(MaxCalloutLogEntries, _calloutLog.Count - MaxCalloutLogEntries);
+            }
 
             if (_preferences.UseRecordedSounds && RecordedSoundEngine.TryGetPath(callout, out string path))
             {
@@ -531,13 +578,31 @@ namespace SimCallouts
 
         private void BtnSave_Click(object? sender, EventArgs e)
         {
-            double v1 = ParseKts(_txtV1.Text);
-            double vr = ParseKts(_txtRotate.Text);
-            double thrustReductionAlt = ParseKts(_txtThrustReductionAlt.Text);
-            double accelAlt = ParseKts(_txtAccelAlt.Text);
-            double transitionAlt = ParseKts(_txtTransitionAlt.Text);
-            double transitionLevel = ParseKts(_txtTransitionLevel.Text);
-            double minimums = ParseKts(_txtMinimums.Text);
+            ExecuteSaveSpeeds(ParseKts(_txtV1.Text), ParseKts(_txtRotate.Text), ParseKts(_txtThrustReductionAlt.Text),
+                ParseKts(_txtAccelAlt.Text), ParseKts(_txtTransitionAlt.Text), ParseKts(_txtTransitionLevel.Text),
+                ParseKts(_txtMinimums.Text));
+
+            _lblSaveStatus.ForeColor = UiStyle.SuccessColor;
+            _lblSaveStatus.Text = "Saved.";
+        }
+
+        /// <summary>Shared by the native speeds card's Save button (which reads its 7 fields off
+        /// its own text boxes) and the web dashboard's equivalent action, which passes them
+        /// directly instead (see MainForm.DashboardApi.cs). Always succeeds - ParseKts already
+        /// tolerates a blank/invalid field by treating it as 0/off, same as the native form.</summary>
+        private ActionOutcome ExecuteSaveSpeeds(double v1, double vr, double thrustReductionAlt,
+            double accelAlt, double transitionAlt, double transitionLevel, double minimums)
+        {
+            // Keeps the native window's own fields in sync too - matters when this came from the
+            // web dashboard rather than the native Save button itself, so reopening the native
+            // window doesn't show stale values.
+            _txtV1.Text = v1 > 0 ? v1.ToString(CultureInfo.InvariantCulture) : "";
+            _txtRotate.Text = vr > 0 ? vr.ToString(CultureInfo.InvariantCulture) : "";
+            _txtThrustReductionAlt.Text = thrustReductionAlt > 0 ? thrustReductionAlt.ToString(CultureInfo.InvariantCulture) : "";
+            _txtAccelAlt.Text = accelAlt > 0 ? accelAlt.ToString(CultureInfo.InvariantCulture) : "";
+            _txtTransitionAlt.Text = transitionAlt > 0 ? transitionAlt.ToString(CultureInfo.InvariantCulture) : "";
+            _txtTransitionLevel.Text = transitionLevel > 0 ? transitionLevel.ToString(CultureInfo.InvariantCulture) : "";
+            _txtMinimums.Text = minimums > 0 ? minimums.ToString(CultureInfo.InvariantCulture) : "";
 
             _tracker.Configure(v1, vr, thrustReductionAlt, accelAlt, transitionAlt, transitionLevel, minimums);
             _preferences.V1Kts = v1;
@@ -548,9 +613,7 @@ namespace SimCallouts
             _preferences.TransitionLevelFt = transitionLevel;
             _preferences.MinimumsAglFt = minimums;
             _preferences.Save();
-
-            _lblSaveStatus.ForeColor = UiStyle.SuccessColor;
-            _lblSaveStatus.Text = "Saved.";
+            return ActionOutcome.Ok("Speeds saved.");
         }
 
         private static double ParseKts(string text) =>
@@ -561,35 +624,62 @@ namespace SimCallouts
             using var dlg = new ConfigForm(_preferences, _speech, _mp3Playback, _elevenLabs);
             if (dlg.ShowDialog(this) == DialogResult.OK)
             {
-                if (_preferences.EnableBrowserImport)
-                    _importServer.Start();
-                else
-                    _importServer.Stop();
-
-                _tracker.ConfigureEnabled(_preferences.EnableV1, _preferences.EnableRotate,
-                    _preferences.EnablePositiveRate, _preferences.EnableThrustReduction, _preferences.EnableAccel,
-                    _preferences.EnableTenThousandFt, _preferences.EnableTransitionAltitude, _preferences.EnableTransitionLevel,
-                    _preferences.EnableEightyKnots, _preferences.EnableHundredKnots,
-                    _preferences.EnableOneThousandFeet, _preferences.EnableFiveHundredFeet,
-                    _preferences.EnableMinimums);
-                RefreshSpeedsCard();
-
+                ApplySettingsSideEffects();
                 _lblStatus.ForeColor = UiStyle.SuccessColor;
                 _lblStatus.Text = "Settings saved.";
             }
         }
 
+        /// <summary>Whatever BtnSettings_Click does after a native Settings save, factored out so
+        /// the web dashboard's settings save (see MainForm.DashboardApi.cs) can do exactly the
+        /// same thing rather than duplicating or drifting from it.</summary>
+        private void ApplySettingsSideEffects()
+        {
+            if (_preferences.EnableBrowserImport)
+                _importServer.Start();
+            else
+                _importServer.Stop();
+
+            // Always stop-then-start rather than just toggling - covers a port change while
+            // already enabled, not just enabled/disabled flipping.
+            _dashboardServer.Stop();
+            if (_preferences.EnableWebDashboard)
+                _dashboardServer.Start(_preferences.WebDashboardPort);
+
+            _tracker.ConfigureEnabled(_preferences.EnableV1, _preferences.EnableRotate,
+                _preferences.EnablePositiveRate, _preferences.EnableThrustReduction, _preferences.EnableAccel,
+                _preferences.EnableTenThousandFt, _preferences.EnableTransitionAltitude, _preferences.EnableTransitionLevel,
+                _preferences.EnableEightyKnots, _preferences.EnableHundredKnots,
+                _preferences.EnableOneThousandFeet, _preferences.EnableFiveHundredFeet,
+                _preferences.EnableMinimums);
+
+            if (!string.IsNullOrEmpty(_preferences.VoiceName))
+            {
+                try { _speech.SelectVoice(_preferences.VoiceName); }
+                catch (ArgumentException) { /* voice no longer installed - keep the default */ }
+            }
+            _speech.Volume = Math.Clamp(_preferences.VolumePercent, 0, 100);
+            _mp3Playback.Volume = _preferences.VolumePercent / 100f;
+
+            RefreshSpeedsCard();
+        }
+
         private async void BtnImportFlight_Click(object? sender, EventArgs e)
         {
-            if (string.IsNullOrWhiteSpace(_preferences.SimBriefId))
-            {
-                MessageBox.Show(this, "Please enter your SimBrief username or pilot ID in Settings first.",
-                    "Settings Required", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
             _btnImportFlight.Enabled = false;
             SetBriefingButtonsEnabled(false);
+            var outcome = await ExecuteImportFlightAsync();
+            ShowIfFailed(outcome, "SimBrief Error");
+            _btnImportFlight.Enabled = true;
+        }
+
+        /// <summary>Shared by the native "Import Flight" button and the web dashboard's
+        /// equivalent action (see MainForm.DashboardApi.cs).</summary>
+        private async Task<ActionOutcome> ExecuteImportFlightAsync()
+        {
+            if (string.IsNullOrWhiteSpace(_preferences.SimBriefId))
+                return ActionOutcome.Fail("Enter your SimBrief username or pilot ID in Settings first.");
+
             _lblStatus.ForeColor = UiStyle.MutedTextColor;
             _lblStatus.Text = "Loading latest flight plan from SimBrief...";
 
@@ -598,36 +688,49 @@ namespace SimCallouts
                 _currentPlan = await SimBriefClient.FetchLatestAsync(_preferences.SimBriefId);
                 SetBriefingButtonsEnabled(true);
                 _lblStatus.ForeColor = UiStyle.SuccessColor;
-                _lblStatus.Text = $"Loaded: {_currentPlan.OriginIcao} -> {_currentPlan.DestIcao} ({_currentPlan.Callsign})";
+                string message = $"Loaded: {_currentPlan.OriginIcao} -> {_currentPlan.DestIcao} ({_currentPlan.Callsign})";
+                _lblStatus.Text = message;
+                return ActionOutcome.Ok(message);
             }
             catch (Exception ex)
             {
                 _lblStatus.ForeColor = UiStyle.ErrorColor;
                 _lblStatus.Text = "Failed to load flight plan.";
-                MessageBox.Show(this, ex.Message, "SimBrief Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            finally
-            {
-                _btnImportFlight.Enabled = true;
+                return ActionOutcome.Fail(ex.Message);
             }
         }
 
-        private void BtnDepartureBriefing_Click(object? sender, EventArgs e)
+        private void BtnDepartureBriefing_Click(object? sender, EventArgs e) => ShowIfFailed(ExecuteDepartureBriefing(), "Briefing Error");
+
+        private ActionOutcome ExecuteDepartureBriefing()
         {
-            if (_currentPlan == null) return;
+            if (_currentPlan == null) return ActionOutcome.Fail("No flight plan loaded - import one first.");
             string text = BriefingBuilder.BuildDeparture(_currentPlan, _preferences);
             SpeakText(text);
             _lblStatus.ForeColor = UiStyle.SuccessColor;
             _lblStatus.Text = "Speaking departure briefing...";
+            return ActionOutcome.Ok("Speaking departure briefing...");
         }
 
-        private void BtnArrivalBriefing_Click(object? sender, EventArgs e)
+        private void BtnArrivalBriefing_Click(object? sender, EventArgs e) => ShowIfFailed(ExecuteArrivalBriefing(), "Briefing Error");
+
+        private ActionOutcome ExecuteArrivalBriefing()
         {
-            if (_currentPlan == null) return;
+            if (_currentPlan == null) return ActionOutcome.Fail("No flight plan loaded - import one first.");
             string text = BriefingBuilder.BuildArrival(_currentPlan, _preferences);
             SpeakText(text);
             _lblStatus.ForeColor = UiStyle.SuccessColor;
             _lblStatus.Text = "Speaking arrival briefing...";
+            return ActionOutcome.Ok("Speaking arrival briefing...");
+        }
+
+        /// <summary>Shows a MessageBox for a failed ActionOutcome - the UI-click-handler half of
+        /// the split described on the Execute* methods above; API handlers skip this and return
+        /// JSON instead (see MainForm.DashboardApi.cs).</summary>
+        private void ShowIfFailed(ActionOutcome outcome, string caption)
+        {
+            if (!outcome.Success)
+                MessageBox.Show(this, outcome.Message, caption, MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 }

@@ -21,6 +21,21 @@ namespace SimCallouts
 
         private enum Definitions { FlightData }
         private enum Requests { FlightData }
+        private enum Events { Sim }
+
+        // SimConnect starts streaming "user aircraft" data the moment the connection opens,
+        // which is as soon as the sim process itself is up - well before a flight is actually
+        // loaded and spawned in. During the loading screen/main menu that data is meaningless
+        // (RADIO HEIGHT in particular has been seen reporting a transient value well above the
+        // "Positive rate" AGL threshold while the world is still streaming in), and it can
+        // swing through several different bogus readings as the load progresses - each one
+        // potentially re-triggering CalloutTracker's ground-rearm-then-refire cycle, which is
+        // what caused "Positive rate" to repeat itself while loading in. The "Sim" system event
+        // is SimConnect's own documented signal for "a flight is actually running" (1) vs. not
+        // (0 - main menu, loading screen, or paused) - gating FlightStateUpdated on it means
+        // CalloutTracker never even sees data from that window, rather than trying to filter
+        // out bad readings after the fact.
+        private bool _simRunning;
 
         [StructLayout(LayoutKind.Sequential)]
         private struct FlightData
@@ -57,6 +72,13 @@ namespace SimCallouts
                 sc.OnRecvQuit += (_, _) => HandleDisconnect();
                 sc.OnRecvException += (_, _) => { };
                 sc.OnRecvSimobjectData += OnRecvSimobjectData;
+                sc.OnRecvEvent += OnRecvEvent;
+
+                // False until the first "Sim" event actually reports running - so a fresh
+                // connection made while still sitting at the main menu/loading screen starts
+                // out silent too, not just reconnects.
+                _simRunning = false;
+                sc.SubscribeToSystemEvent(Events.Sim, "Sim");
 
                 sc.AddToDataDefinition(Definitions.FlightData, "AIRSPEED INDICATED", "knots",
                     SIMCONNECT_DATATYPE.FLOAT64, 0f, SimConnect.SIMCONNECT_UNUSED);
@@ -85,9 +107,16 @@ namespace SimCallouts
             }
         }
 
+        private void OnRecvEvent(SimConnect sender, SIMCONNECT_RECV_EVENT data)
+        {
+            if ((Events)data.uEventID != Events.Sim) return;
+            _simRunning = data.dwData != 0;
+        }
+
         private void OnRecvSimobjectData(SimConnect sender, SIMCONNECT_RECV_SIMOBJECT_DATA data)
         {
             if ((Requests)data.dwRequestID != Requests.FlightData) return;
+            if (!_simRunning) return; // still loading/at the main menu/paused - see _simRunning above
             var value = (FlightData)data.dwData[0];
 
             FlightStateUpdated?.Invoke(new SimFlightState(

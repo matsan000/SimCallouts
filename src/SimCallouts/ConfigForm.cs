@@ -15,6 +15,8 @@ namespace SimCallouts
 
         private readonly TextBox _txtSimBriefId = new();
         private readonly RoundedSwitch _chkBrowserImport = new();
+        private readonly RoundedSwitch _chkWebDashboard = new();
+        private readonly TextBox _txtDashboardPort = new();
         private readonly RoundedSlider _sldVolume = new();
         private readonly Label _lblVolumeValue = new();
         private readonly RoundedSwitch _chkV1 = new();
@@ -150,9 +152,12 @@ namespace SimCallouts
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 1,
-                RowCount = 4,
+                RowCount = 7,
                 Margin = new Padding(0)
             };
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -187,10 +192,63 @@ namespace SimCallouts
                 Margin = new Padding(2, 0, 0, 0)
             };
 
+            var webDashboardRow = UiStyle.CreateSwitchRow(
+                "Enable local web dashboard", _chkWebDashboard);
+            webDashboardRow.Margin = new Padding(0, 14, 0, 6);
+
+            var dashboardPortRow = new TableLayoutPanel
+            {
+                Dock = DockStyle.Top,
+                ColumnCount = 2,
+                RowCount = 1,
+                AutoSize = true,
+                Margin = new Padding(0, 0, 0, 6)
+            };
+            dashboardPortRow.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            dashboardPortRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+
+            var lblDashboardPort = new Label
+            {
+                Text = "Port:",
+                AutoSize = true,
+                ForeColor = UiStyle.TextColor,
+                Anchor = AnchorStyles.Left,
+                Margin = new Padding(0, 6, 8, 0)
+            };
+            _txtDashboardPort.Width = 80;
+            _txtDashboardPort.Margin = new Padding(0);
+            UiStyle.StyleTextBox(_txtDashboardPort);
+            var dashboardPortField = UiStyle.CreateInputField(_txtDashboardPort);
+            dashboardPortField.Width = 100;
+            dashboardPortField.Anchor = AnchorStyles.Left;
+
+            dashboardPortRow.Controls.Add(lblDashboardPort, 0, 0);
+            dashboardPortRow.Controls.Add(dashboardPortField, 1, 0);
+
+            var lblWebDashboardNote = new Label
+            {
+                // Same "here's the URL" framing as SimPrinter's own dashboard note - also
+                // where RealEFB's Add Website App quick-add button points by default (see
+                // WEBSITE_APP_QUICK_ADD in RealEFB's app.js), so changing this port means using
+                // "Choose Image"/typing the URL by hand there instead.
+                Text = "A read-only status page (connection, current flight, briefed V1/Rotate, " +
+                       "recent callouts) at http://localhost:<port> - nothing here can trigger a " +
+                       "callout or change a setting. Meant to be added as a Website App in " +
+                       "RealEFB so this is visible without switching windows.",
+                AutoSize = true,
+                MaximumSize = new Size(400, 0),
+                Font = new Font("Segoe UI", 8f),
+                ForeColor = UiStyle.MutedTextColor,
+                Margin = new Padding(2, 0, 0, 0)
+            };
+
             layout.Controls.Add(lblId, 0, 0);
             layout.Controls.Add(field, 0, 1);
             layout.Controls.Add(importRow, 0, 2);
             layout.Controls.Add(lblImportNote, 0, 3);
+            layout.Controls.Add(webDashboardRow, 0, 4);
+            layout.Controls.Add(dashboardPortRow, 0, 5);
+            layout.Controls.Add(lblWebDashboardNote, 0, 6);
             content.Controls.Add(layout);
         }
 
@@ -559,6 +617,8 @@ namespace SimCallouts
         {
             _txtSimBriefId.Text = _preferences.SimBriefId;
             _chkBrowserImport.Checked = _preferences.EnableBrowserImport;
+            _chkWebDashboard.Checked = _preferences.EnableWebDashboard;
+            _txtDashboardPort.Text = _preferences.WebDashboardPort.ToString();
 
             // Label text and the live engine volume are set explicitly right after, rather
             // than relying on Value's ValueChanged event - that event doesn't fire when the
@@ -598,6 +658,9 @@ namespace SimCallouts
         {
             _preferences.SimBriefId = _txtSimBriefId.Text.Trim();
             _preferences.EnableBrowserImport = _chkBrowserImport.Checked;
+            _preferences.EnableWebDashboard = _chkWebDashboard.Checked;
+            if (int.TryParse(_txtDashboardPort.Text, out int dashboardPort) && dashboardPort is > 0 and <= 65535)
+                _preferences.WebDashboardPort = dashboardPort;
 
             _preferences.VolumePercent = _sldVolume.Value;
 
