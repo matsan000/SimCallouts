@@ -21,7 +21,7 @@ namespace SimCallouts
 
         private enum Definitions { FlightData }
         private enum Requests { FlightData }
-        private enum Events { Sim, SimStart, SimStop }
+        private enum Events { Sim, SimStart, SimStop, FlightLoaded }
 
         // SimConnect starts streaming "user aircraft" data the moment the connection opens,
         // which is as soon as the sim process itself is up - well before a flight is actually
@@ -30,9 +30,13 @@ namespace SimCallouts
         // "Positive rate" AGL threshold while the world is still streaming in), and it can
         // swing through several different bogus readings as the load progresses - each one
         // potentially re-triggering CalloutTracker's ground-rearm-then-refire cycle, which is
-        // what caused "Positive rate" to repeat itself while loading in.
+        // what caused "Positive rate" to repeat itself while loading in - and, it turns out,
+        // when returning to the main menu after a flight too (landing rearms the tracker while
+        // the flight is still genuinely on the ground, then the menu's own bogus data re-fires
+        // it - same underlying cause as the loading-screen case, just at the other end).
         //
-        // Two signals gated together (both must say "really flying"), not just one:
+        // Three signals gated together (all must say "really flying"), not just one - "Sim" and
+        // "SimStart"/"SimStop" turned out to both be unreliable here on their own:
         //  - "Sim" is documented as 1 = "the user is in control of the aircraft", 0 = "the user
         //    is navigating the UI" - but MSFS 2024's main menu renders a live establishing-shot
         //    flight behind the menu overlay, and that's been observed to still leave "Sim"
@@ -40,12 +44,20 @@ namespace SimCallouts
         //  - "SimStart"/"SimStop" are documented more strictly ("the user is actively
         //    controlling the aircraft, typically on the ground or in the air") and fire
         //    specifically around a real flight beginning/ending, not the menu's background
-        //    render. Known to double-fire during a flight reset/load (SimStop, SimStart,
-        //    SimStop, SimStart) - harmless here since this only tracks the latest state, not
-        //    counting transitions.
+        //    render - but the main menu turns out to load its own background scene as a real
+        //    flight file (see "FlightLoaded" below), which can fire its own SimStart and defeat
+        //    this gate too. Also known to double-fire during a flight reset/load (SimStop,
+        //    SimStart, SimStop, SimStart) - harmless here since this only tracks the latest
+        //    state, not counting transitions.
+        //  - "FlightLoaded" is the one signal that's actually reliable for this: MSFS loads a
+        //    real flight file named "MainMenu.FLT" behind the main menu, and this event fires
+        //    with that file's path whenever ANY flight loads (a real one or the menu's). So
+        //    unlike the other two, it can tell the menu's background flight apart from an
+        //    actual one by name, rather than just observing that *some* flight is "running".
         private bool _simEventRunning;
         private bool _flightStarted;
-        private bool SimRunning => _simEventRunning && _flightStarted;
+        private bool _atMainMenu;
+        private bool SimRunning => _simEventRunning && _flightStarted && !_atMainMenu;
 
         [StructLayout(LayoutKind.Sequential)]
         private struct FlightData
@@ -83,15 +95,20 @@ namespace SimCallouts
                 sc.OnRecvException += (_, _) => { };
                 sc.OnRecvSimobjectData += OnRecvSimobjectData;
                 sc.OnRecvEvent += OnRecvEvent;
+                sc.OnRecvEventFilename += OnRecvEventFilename;
 
-                // False until the events themselves say otherwise - so a fresh connection made
-                // while still sitting at the main menu/loading screen starts out silent too,
-                // not just reconnects.
+                // False/true (respectively) until the events themselves say otherwise - so a
+                // fresh connection made while still sitting at the main menu/loading screen
+                // starts out silent too, not just reconnects. _atMainMenu starts true rather
+                // than false for the same reason: assume "not really flying" until a
+                // FlightLoaded event proves otherwise, rather than assuming the opposite.
                 _simEventRunning = false;
                 _flightStarted = false;
+                _atMainMenu = true;
                 sc.SubscribeToSystemEvent(Events.Sim, "Sim");
                 sc.SubscribeToSystemEvent(Events.SimStart, "SimStart");
                 sc.SubscribeToSystemEvent(Events.SimStop, "SimStop");
+                sc.SubscribeToSystemEvent(Events.FlightLoaded, "FlightLoaded");
 
                 sc.AddToDataDefinition(Definitions.FlightData, "AIRSPEED INDICATED", "knots",
                     SIMCONNECT_DATATYPE.FLOAT64, 0f, SimConnect.SIMCONNECT_UNUSED);
@@ -134,6 +151,15 @@ namespace SimCallouts
                     _flightStarted = false;
                     break;
             }
+        }
+
+        private void OnRecvEventFilename(SimConnect sender, SIMCONNECT_RECV_EVENT_FILENAME data)
+        {
+            if ((Events)data.uEventID != Events.FlightLoaded) return;
+            // The main menu's own background scene loads as "MainMenu.FLT" - anything else
+            // loading is a real flight. See the big comment above SimRunning for why this is
+            // needed alongside Sim/SimStart/SimStop rather than instead of them.
+            _atMainMenu = data.szFileName?.Contains("MainMenu", StringComparison.OrdinalIgnoreCase) ?? true;
         }
 
         private void OnRecvSimobjectData(SimConnect sender, SIMCONNECT_RECV_SIMOBJECT_DATA data)
